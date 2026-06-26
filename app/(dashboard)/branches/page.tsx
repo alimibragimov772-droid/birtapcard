@@ -338,8 +338,6 @@ function BranchModal({
             google_url: googleUrl.trim(),
             nfc_token: nfcToken,
             qr_token: qrToken,
-            nfc_url: nfcUrl,
-            qr_url: qrUrl,
             qr_image_url: null,
             active,
           })
