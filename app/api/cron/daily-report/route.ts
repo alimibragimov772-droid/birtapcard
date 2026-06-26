@@ -72,7 +72,8 @@ export async function GET(req: NextRequest) {
   const results: { company: string; sent: boolean; error?: string }[] = []
 
   for (const tg of tgSettings ?? []) {
-    const company = tg.companies as { id: string; name: string; active: boolean } | null
+    const rawCompany = Array.isArray(tg.companies) ? tg.companies[0] : tg.companies
+    const company = rawCompany as { id: string; name: string; active: boolean } | null
     if (!company || !company.active || !tg.chat_id) continue
 
     // ── Филиалы компании ────────────────────────────────────────────────────
