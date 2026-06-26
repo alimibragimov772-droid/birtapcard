@@ -403,10 +403,10 @@ export default function SettingsPage() {
             }}>
               <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{key}</span>
               <span style={{
-                fontSize: 12.5, color: 'var(--text-dim)',
-                fontFamily: key === 'ID пользователя' ? 'var(--font-mono, monospace)' : 'inherit',
                 fontSize: key === 'ID пользователя' ? 11 : 12.5,
-              } as React.CSSProperties}>
+                color: 'var(--text-dim)',
+                fontFamily: key === 'ID пользователя' ? 'var(--font-mono, monospace)' : 'inherit',
+              }}>
                 {val}
               </span>
             </div>
