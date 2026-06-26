@@ -135,12 +135,15 @@ export default function SettingsPage() {
 
     const { data: prof } = await supabase
       .from('profiles')
-      .select('id, user_id, full_name, role, company_id, companies(name)')
+      .select('id, user_id, full_name, role, company_id, companies!company_id(name)')
       .eq('user_id', user.id)
       .single()
 
     if (prof) {
-      setProfile(prof as Profile)
+      const company = Array.isArray(prof.companies)
+        ? (prof.companies[0] ?? null)
+        : (prof.companies ?? null)
+      setProfile({ ...prof, companies: company } as Profile)
       setFullName(prof.full_name ?? '')
     }
     setLoading(false)
