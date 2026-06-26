@@ -341,12 +341,12 @@ function BranchModal({
             qr_image_url: null,
             active,
           })
-          .select('id, qr_url')
+          .select('id')
           .single()
         if (insErr) throw insErr
 
         setStep('Генерируем QR-код…')
-        const publicUrl = await generateAndUploadQr(supabase, inserted.id, inserted.qr_url)
+        const publicUrl = await generateAndUploadQr(supabase, inserted.id, qrUrl)
 
         setStep('Сохраняем QR-код…')
         const { error: qrErr } = await supabase
