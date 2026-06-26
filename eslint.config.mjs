@@ -17,4 +17,3 @@ const eslintConfig = defineConfig([
 ]);
 
 export default eslintConfig;
-PS C:\Users\ANUBIS PC\birtapcard> 
