@@ -243,32 +243,32 @@ function CopyField({ value, mono = true }: { value: string; mono?: boolean }) {
   )
 }
 
-// Генерация PNG QR-кода в браузере и загрузка в Supabase Storage (bucket qr-codes, public)
+// Генерация PNG QR-кода в браузере и загрузка через API-роут (обходит RLS)
 async function generateAndUploadQr(
-  supabase: ReturnType<typeof createClient>,
+  _supabase: unknown,
   branchId: string,
   qrUrl: string
 ): Promise<string> {
-  const dataUrl = await QRCode.toDataURL(qrUrl, {
+  const imageBase64 = await QRCode.toDataURL(qrUrl, {
     width: 512,
     margin: 2,
     color: { dark: '#070C1A', light: '#FFFFFF' },
     errorCorrectionLevel: 'M',
   })
-  const blobRes = await fetch(dataUrl)
-  const blob = await blobRes.blob()
-  const filePath = `${branchId}.png`
 
-  const { error: upErr } = await supabase
-    .storage
-    .from(QR_BUCKET)
-    .upload(filePath, blob, { contentType: 'image/png', upsert: true })
+  const res = await fetch('/api/branches/qr-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branchId, imageBase64 }),
+  })
 
-  if (upErr) throw upErr
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Ошибка загрузки QR-кода')
+  }
 
-  const { data } = supabase.storage.from(QR_BUCKET).getPublicUrl(filePath)
-  // Кэш-бастер, чтобы <img> сразу подхватил новую картинку после "Перегенерировать"
-  return `${data.publicUrl}?v=${Date.now()}`
+  const { publicUrl } = await res.json()
+  return publicUrl
 }
 
 // ─── Модальное окно создания/редактирования филиала ─────────────────────────
@@ -306,22 +306,26 @@ function BranchModal({
 
     setSaving(true)
     setError(null)
-    const supabase = createClient()
 
     try {
       if (isEdit) {
         setStep('Сохраняем изменения…')
-        const { error: updErr } = await supabase
-          .from('branches')
-          .update({
+        const updRes = await fetch('/api/branches/manage', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: branch!.id,
             company_id: companyId,
             name: name.trim(),
             slug: slug.trim(),
             google_url: googleUrl.trim(),
             active,
-          })
-          .eq('id', branch!.id)
-        if (updErr) throw updErr
+          }),
+        })
+        if (!updRes.ok) {
+          const err = await updRes.json().catch(() => ({}))
+          throw new Error(err.error || 'Не удалось обновить филиал')
+        }
       } else {
         setStep('Создаём филиал и токены…')
         const nfcToken = crypto.randomUUID()
@@ -329,31 +333,39 @@ function BranchModal({
         const nfcUrl = `${SITE_URL}/r/nfc/${nfcToken}`
         const qrUrl = `${SITE_URL}/r/qr/${qrToken}`
 
-        const { data: inserted, error: insErr } = await supabase
-          .from('branches')
-          .insert({
+        // Создаём через API-роут (обходит RLS через Service Role)
+        const createRes = await fetch('/api/branches/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             company_id: companyId,
             name: name.trim(),
             slug: slug.trim(),
             google_url: googleUrl.trim(),
             nfc_token: nfcToken,
             qr_token: qrToken,
-            qr_image_url: null,
             active,
-          })
-          .select('id')
-          .single()
-        if (insErr) throw insErr
+          }),
+        })
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}))
+          throw new Error(err.error || 'Не удалось создать филиал')
+        }
+        const inserted = await createRes.json()
 
         setStep('Генерируем QR-код…')
-        const publicUrl = await generateAndUploadQr(supabase, inserted.id, qrUrl)
+        const publicUrl = await generateAndUploadQr(null, inserted.id, qrUrl)
 
         setStep('Сохраняем QR-код…')
-        const { error: qrErr } = await supabase
-          .from('branches')
-          .update({ qr_image_url: publicUrl })
-          .eq('id', inserted.id)
-        if (qrErr) throw qrErr
+        const patchRes = await fetch('/api/branches/manage', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: inserted.id, qr_image_url: publicUrl }),
+        })
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}))
+          throw new Error(err.error || 'Не удалось сохранить QR-код')
+        }
       }
 
       setSaving(false)
@@ -609,12 +621,16 @@ export default function BranchesPage() {
 
   async function handleToggleActive(b: Branch) {
     setToggling(b.id)
-    const supabase = createClient()
-    const { error } = await supabase.from('branches').update({ active: !b.active }).eq('id', b.id)
-    if (!error) {
+    const res = await fetch('/api/branches/manage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: b.id, active: !b.active }),
+    })
+    if (res.ok) {
       setBranches(prev => prev.map(x => x.id === b.id ? { ...x, active: !x.active } : x))
     } else {
-      setRowError(error.message)
+      const err = await res.json().catch(() => ({}))
+      setRowError(err.error || 'Ошибка обновления')
     }
     setToggling(null)
   }
@@ -622,11 +638,17 @@ export default function BranchesPage() {
   async function handleRegenerateQr(b: Branch) {
     setRegenerating(b.id)
     setRowError(null)
-    const supabase = createClient()
     try {
-      const publicUrl = await generateAndUploadQr(supabase, b.id, b.qr_url)
-      const { error } = await supabase.from('branches').update({ qr_image_url: publicUrl }).eq('id', b.id)
-      if (error) throw error
+      const publicUrl = await generateAndUploadQr(null, b.id, b.qr_url)
+      const patchRes = await fetch('/api/branches/manage', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: b.id, qr_image_url: publicUrl }),
+      })
+      if (!patchRes.ok) {
+        const err = await patchRes.json().catch(() => ({}))
+        throw new Error(err.error || 'Не удалось сохранить QR')
+      }
       setBranches(prev => prev.map(x => x.id === b.id ? { ...x, qr_image_url: publicUrl } : x))
     } catch (e) {
       setRowError(e instanceof Error ? e.message : 'Не удалось перегенерировать QR-код')
@@ -642,12 +664,16 @@ export default function BranchesPage() {
 
     setDeleting(b.id)
     setRowError(null)
-    const supabase = createClient()
     try {
-      const { error } = await supabase.from('branches').delete().eq('id', b.id)
-      if (error) throw error
-      // Подчищаем файл QR-кода в Storage (не критично, если не получится)
-      await supabase.storage.from(QR_BUCKET).remove([`${b.id}.png`]).catch(() => {})
+      const delRes = await fetch('/api/branches/manage', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: b.id }),
+      })
+      if (!delRes.ok) {
+        const err = await delRes.json().catch(() => ({}))
+        throw new Error(err.error || 'Не удалось удалить филиал')
+      }
       setBranches(prev => prev.filter(x => x.id !== b.id))
     } catch (e) {
       setRowError(e instanceof Error ? e.message : 'Не удалось удалить филиал')
