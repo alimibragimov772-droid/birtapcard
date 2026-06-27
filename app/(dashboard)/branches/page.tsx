@@ -582,6 +582,7 @@ export default function BranchesPage() {
   }, [])
 
   const canManage = profile?.role === 'super_admin' || profile?.role === 'owner'
+  const canEdit = profile?.role === 'super_admin'
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -743,9 +744,11 @@ export default function BranchesPage() {
           style={{ ...inputStyle(), width: 260 }}
         />
         <div style={{ marginLeft: 'auto' }}>
-          <PrimaryButton onClick={openCreate} disabled={companies.length === 0}>
-            <span style={{ fontSize: 14 }}>+</span> Добавить филиал
-          </PrimaryButton>
+          {canEdit && (
+            <PrimaryButton onClick={openCreate} disabled={companies.length === 0}>
+              <span style={{ fontSize: 14 }}>+</span> Добавить филиал
+            </PrimaryButton>
+          )}
         </div>
       </div>
 
@@ -838,14 +841,16 @@ export default function BranchesPage() {
 
               {/* Действия */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifySelf: 'end' }}>
-                <Toggle checked={b.active} disabled={toggling === b.id} onChange={() => handleToggleActive(b)} />
+                {canEdit && <Toggle checked={b.active} disabled={toggling === b.id} onChange={() => handleToggleActive(b)} />}
                 <GhostButton onClick={() => handleRegenerateQr(b)} disabled={regenerating === b.id}>
                   {regenerating === b.id ? '…' : '↻ QR'}
                 </GhostButton>
-                <GhostButton onClick={() => openEdit(b)}>Редактировать</GhostButton>
-                <GhostButton danger onClick={() => handleDelete(b)} disabled={deleting === b.id}>
-                  {deleting === b.id ? '…' : 'Удалить'}
-                </GhostButton>
+                {canEdit && <GhostButton onClick={() => openEdit(b)}>Редактировать</GhostButton>}
+                {canEdit && (
+                  <GhostButton danger onClick={() => handleDelete(b)} disabled={deleting === b.id}>
+                    {deleting === b.id ? '…' : 'Удалить'}
+                  </GhostButton>
+                )}
               </div>
             </div>
           ))

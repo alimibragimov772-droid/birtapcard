@@ -347,6 +347,7 @@ export default function CompaniesPage() {
   }, [])
 
   const canManage = profile?.role === 'super_admin' || profile?.role === 'owner'
+  const canEdit = profile?.role === 'super_admin'
 
   const loadCompanies = useCallback(async () => {
     setLoading(true)
@@ -436,9 +437,11 @@ export default function CompaniesPage() {
           placeholder="Поиск по названию или slug…"
           style={{ ...inputStyle(), width: 280 }}
         />
-        <PrimaryButton onClick={openCreate}>
-          <span style={{ fontSize: 14 }}>+</span> Добавить ресторан
-        </PrimaryButton>
+        {canEdit && (
+          <PrimaryButton onClick={openCreate}>
+            <span style={{ fontSize: 14 }}>+</span> Добавить ресторан
+          </PrimaryButton>
+        )}
       </div>
 
       {/* Список ресторанов */}
@@ -493,7 +496,7 @@ export default function CompaniesPage() {
                   disabled={toggling === c.id}
                   onChange={() => handleToggleActive(c)}
                 />
-                <GhostButton onClick={() => openEdit(c)}>Редактировать</GhostButton>
+                {canEdit && <GhostButton onClick={() => openEdit(c)}>Редактировать</GhostButton>}
               </div>
             </div>
           ))
