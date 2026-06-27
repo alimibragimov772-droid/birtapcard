@@ -842,9 +842,11 @@ export default function BranchesPage() {
               {/* Действия */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifySelf: 'end' }}>
                 {canEdit && <Toggle checked={b.active} disabled={toggling === b.id} onChange={() => handleToggleActive(b)} />}
-                <GhostButton onClick={() => handleRegenerateQr(b)} disabled={regenerating === b.id}>
-                  {regenerating === b.id ? '…' : '↻ QR'}
-                </GhostButton>
+                {canEdit && (
+                  <GhostButton onClick={() => handleRegenerateQr(b)} disabled={regenerating === b.id}>
+                    {regenerating === b.id ? '…' : '↻ QR'}
+                  </GhostButton>
+                )}
                 {canEdit && <GhostButton onClick={() => openEdit(b)}>Редактировать</GhostButton>}
                 {canEdit && (
                   <GhostButton danger onClick={() => handleDelete(b)} disabled={deleting === b.id}>
