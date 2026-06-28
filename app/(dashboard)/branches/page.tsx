@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'qrcode'
 
@@ -552,7 +551,6 @@ function QrPreviewModal({ branch, onClose }: { branch: Branch; onClose: () => vo
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function BranchesPage() {
-  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [companies, setCompanies] = useState<CompanyOption[]>([])
@@ -580,9 +578,7 @@ export default function BranchesPage() {
         .single()
       setProfile(data as Profile | null)
       setProfileLoaded(true)
-      if (!data || data.role !== 'super_admin') {
-        router.replace('/dashboard')
-      }
+    })
   }, [])
 
   const canManage = profile?.role === 'super_admin'
@@ -713,7 +709,7 @@ export default function BranchesPage() {
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Доступ ограничен</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Раздел «Филиалы» доступен только владельцам и супер-администраторам.
+            Раздел «Филиалы» доступен только Super Admin.
           </div>
         </div>
       </Panel>

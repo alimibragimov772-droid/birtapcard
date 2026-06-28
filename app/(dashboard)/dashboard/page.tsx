@@ -9,6 +9,13 @@ import {
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
 
+type UserProfile = {
+  user_id: string
+  role: string | null
+  company_id: string | null
+  branch_id: string | null
+}
+
 type ScanEvent = {
   id: string
   branch_id: string
@@ -94,7 +101,6 @@ function Panel({ title, sub, children, action }: {
   )
 }
 
-// Custom tooltip для графика
 function ChartTooltip({ active, payload, label }: {
   active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string
 }) {
@@ -119,6 +125,9 @@ function ChartTooltip({ active, payload, label }: {
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
+
   const [events, setEvents] = useState<ScanEvent[]>([])
   const [dayData, setDayData] = useState<DayPoint[]>([])
   const [deviceData, setDeviceData] = useState<DevicePoint[]>([])
@@ -129,13 +138,26 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [tab, setTab] = useState<'7' | '30' | '90'>('7')
 
-  // Подсчёт KPI
+  // Загрузка профиля
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setProfileLoaded(true); return }
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, role, company_id, branch_id')
+        .eq('user_id', user.id)
+        .single()
+      setProfile(data as UserProfile | null)
+      setProfileLoaded(true)
+    })
+  }, [])
+
   const todayStr = new Date().toISOString().slice(0, 10)
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   const todayNfc    = events.filter(e => e.scanned_at.startsWith(todayStr) && e.scan_type === 'nfc').length
   const todayQr     = events.filter(e => e.scanned_at.startsWith(todayStr) && e.scan_type === 'qr').length
   const todayUniq   = events.filter(e => e.scanned_at.startsWith(todayStr) && e.is_unique).length
-  const yestTotal   = events.filter(e => e.scanned_at.startsWith(yesterdayStr)).length
   const todayTotal  = todayNfc + todayQr
   const conversion  = todayTotal > 0 ? Math.round((todayUniq / todayTotal) * 100) : 0
   const yestNfc     = events.filter(e => e.scanned_at.startsWith(yesterdayStr) && e.scan_type === 'nfc').length
@@ -143,18 +165,46 @@ export default function DashboardPage() {
   const yestUniq    = events.filter(e => e.scanned_at.startsWith(yesterdayStr) && e.is_unique).length
 
   const loadData = useCallback(async () => {
+    if (!profileLoaded || !profile) return
     setLoading(true)
     const supabase = createClient()
     const days = parseInt(tab)
     const since = new Date(Date.now() - days * 86400000).toISOString()
 
-    const { data: rawEvents } = await supabase
+    // Строим запрос с фильтрацией по роли
+    let query = supabase
       .from('scan_events')
       .select('id, branch_id, scan_type, device, browser_lang, is_unique, scanned_at, branches(name, companies(name))')
       .gte('scanned_at', since)
       .order('scanned_at', { ascending: false })
       .limit(500)
 
+    if (profile.role === 'branch_manager' && profile.branch_id) {
+      // Branch manager видит только свой филиал
+      query = query.eq('branch_id', profile.branch_id)
+    } else if (profile.role === 'owner' && profile.company_id) {
+      // Owner видит все филиалы своей компании (RLS дополнительно защищает на уровне БД)
+      const { data: branchIds } = await supabase
+        .from('branches')
+        .select('id')
+        .eq('company_id', profile.company_id)
+      const ids = (branchIds ?? []).map((b: { id: string }) => b.id)
+      if (ids.length > 0) {
+        query = query.in('branch_id', ids)
+      } else {
+        // Нет филиалов — возвращаем пустые данные
+        setEvents([])
+        setDayData([])
+        setDeviceData([])
+        setLangData([])
+        setTopBranches([])
+        setLoading(false)
+        return
+      }
+    }
+    // super_admin — без фильтра, видит всё
+
+    const { data: rawEvents } = await query
     const ev: ScanEvent[] = (rawEvents as ScanEvent[] | null) ?? []
     setEvents(ev)
 
@@ -215,11 +265,7 @@ export default function DashboardPage() {
       const id = e.branch_id
       if (!branchCount[id]) {
         const b = e.branches
-        branchCount[id] = {
-          name: b?.name ?? '—',
-          company: b?.companies?.name ?? '—',
-          count: 0,
-        }
+        branchCount[id] = { name: b?.name ?? '—', company: b?.companies?.name ?? '—', count: 0 }
       }
       branchCount[id].count++
     })
@@ -231,9 +277,11 @@ export default function DashboardPage() {
     )
 
     setLoading(false)
-  }, [tab])
+  }, [tab, profile, profileLoaded])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    if (profileLoaded) loadData()
+  }, [loadData, profileLoaded])
 
   async function loadAi() {
     setAiLoading(true)
@@ -257,6 +305,10 @@ export default function DashboardPage() {
   }
 
   const maxBranch = Math.max(...topBranches.map(b => b.scans), 1)
+
+  if (!profileLoaded) {
+    return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Загрузка…</div>
+  }
 
   return (
     <div>
@@ -286,60 +338,62 @@ export default function DashboardPage() {
         <KpiCard label="Конверсия" value={loading ? '…' : `${conversion}%`} delta={`${conversion}%`} deltaUp={conversion >= 50} accent="purple" icon="📈" />
       </div>
 
-      {/* AI-инсайты */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(0,212,170,0.06), rgba(59,130,246,0.06))',
-        border: '1px solid rgba(0,212,170,0.2)', borderRadius: 12, padding: 20,
-        marginBottom: 16, position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 120, height: 120,
-          background: 'radial-gradient(circle, rgba(0,212,170,0.1), transparent 70%)',
-          pointerEvents: 'none' }} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              background: 'linear-gradient(135deg, var(--mint), var(--blue))',
-              color: 'var(--bg)', fontSize: 10, fontWeight: 700, padding: '2px 8px',
-              borderRadius: 4, letterSpacing: 0.5,
-            }}>✦ AI INSIGHTS</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Анализ за сегодня</span>
+      {/* AI-инсайты — только для super_admin и owner */}
+      {(profile?.role === 'super_admin' || profile?.role === 'owner') && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(0,212,170,0.06), rgba(59,130,246,0.06))',
+          border: '1px solid rgba(0,212,170,0.2)', borderRadius: 12, padding: 20,
+          marginBottom: 16, position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', top: -40, right: -40, width: 120, height: 120,
+            background: 'radial-gradient(circle, rgba(0,212,170,0.1), transparent 70%)',
+            pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                background: 'linear-gradient(135deg, var(--mint), var(--blue))',
+                color: 'var(--bg)', fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                borderRadius: 4, letterSpacing: 0.5,
+              }}>✦ AI INSIGHTS</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Анализ за сегодня</span>
+            </div>
+            <button
+              onClick={loadAi}
+              disabled={aiLoading}
+              style={{
+                background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6,
+                padding: '5px 12px', fontSize: 12, fontWeight: 600,
+                color: aiLoading ? 'var(--text-muted)' : 'var(--mint)',
+                cursor: aiLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              {aiLoading ? 'Анализирую…' : aiText ? '↺ Обновить' : '✦ Анализировать'}
+            </button>
           </div>
-          <button
-            onClick={loadAi}
-            disabled={aiLoading}
-            style={{
-              background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6,
-              padding: '5px 12px', fontSize: 12, fontWeight: 600,
-              color: aiLoading ? 'var(--text-muted)' : 'var(--mint)',
-              cursor: aiLoading ? 'default' : 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            {aiLoading ? 'Анализирую…' : aiText ? '↺ Обновить' : '✦ Анализировать'}
-          </button>
-        </div>
-        <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-dim)' }}>
-          {aiLoading ? (
-            <span style={{ color: 'var(--text-muted)' }}>
-              Анализирую данные
-              <span style={{ display: 'inline-flex', gap: 3, marginLeft: 6 }}>
-                {[0, 1, 2].map(i => (
-                  <span key={i} style={{
-                    display: 'inline-block', width: 4, height: 4, borderRadius: '50%',
-                    background: 'var(--mint)',
-                    animation: `btc-blink 1.4s ${i * 0.2}s infinite`,
-                  }} />
-                ))}
+          <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-dim)' }}>
+            {aiLoading ? (
+              <span style={{ color: 'var(--text-muted)' }}>
+                Анализирую данные
+                <span style={{ display: 'inline-flex', gap: 3, marginLeft: 6 }}>
+                  {[0, 1, 2].map(i => (
+                    <span key={i} style={{
+                      display: 'inline-block', width: 4, height: 4, borderRadius: '50%',
+                      background: 'var(--mint)',
+                      animation: `btc-blink 1.4s ${i * 0.2}s infinite`,
+                    }} />
+                  ))}
+                </span>
               </span>
-            </span>
-          ) : aiText ? (
-            <span dangerouslySetInnerHTML={{ __html: aiText.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text)">$1</strong>') }} />
-          ) : (
-            <span style={{ color: 'var(--text-muted)' }}>
-              Нажмите «Анализировать» — AI изучит статистику и даст рекомендации по улучшению конверсии.
-            </span>
-          )}
+            ) : aiText ? (
+              <span dangerouslySetInnerHTML={{ __html: aiText.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text)">$1</strong>') }} />
+            ) : (
+              <span style={{ color: 'var(--text-muted)' }}>
+                Нажмите «Анализировать» — AI изучит статистику и даст рекомендации по улучшению конверсии.
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* График + Топ филиалов */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>

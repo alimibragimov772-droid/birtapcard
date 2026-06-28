@@ -9,6 +9,13 @@ import {
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
 
+type UserProfile = {
+  user_id: string
+  role: string | null
+  company_id: string | null
+  branch_id: string | null
+}
+
 type ScanEvent = {
   id: string
   branch_id: string
@@ -129,6 +136,8 @@ function selectStyle(): React.CSSProperties {
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [range, setRange] = useState<'7' | '30' | '90' | 'custom'>('7')
   const [customFrom, setCustomFrom] = useState<string>(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10))
   const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().slice(0, 10))
@@ -138,8 +147,24 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('total')
 
+  // Загрузка профиля для фильтрации данных по роли
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setProfileLoaded(true); return }
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, role, company_id, branch_id')
+        .eq('user_id', user.id)
+        .single()
+      setProfile(data as UserProfile | null)
+      setProfileLoaded(true)
+    })
+  }, [])
+
   // Список филиалов для фильтра (зависит от RLS — видны только доступные)
   useEffect(() => {
+    if (!profileLoaded) return
     const supabase = createClient()
     supabase
       .from('branches')
@@ -150,7 +175,7 @@ export default function AnalyticsPage() {
           .map(b => ({ id: b.id, name: b.name, company: b.companies?.name ?? '—' }))
         setBranches(list)
       })
-  }, [])
+  }, [profileLoaded])
 
   // Границы периода
   const { since, until, daysCount } = useMemo(() => {
@@ -169,6 +194,7 @@ export default function AnalyticsPage() {
   }, [range, customFrom, customTo])
 
   const loadData = useCallback(async () => {
+    if (!profileLoaded || !profile) return
     setLoading(true)
     const supabase = createClient()
 
@@ -180,16 +206,21 @@ export default function AnalyticsPage() {
       .order('scanned_at', { ascending: false })
       .limit(5000)
 
-    if (branchFilter !== 'all') {
+    // Роль-based фильтрация: branch_manager видит только свой филиал
+    if (profile.role === 'branch_manager' && profile.branch_id) {
+      query = query.eq('branch_id', profile.branch_id)
+    } else if (branchFilter !== 'all') {
       query = query.eq('branch_id', branchFilter)
     }
 
     const { data } = await query
     setEvents((data as ScanEvent[] | null) ?? [])
     setLoading(false)
-  }, [since, until, branchFilter])
+  }, [since, until, branchFilter, profile, profileLoaded])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    if (profileLoaded) loadData()
+  }, [loadData, profileLoaded])
 
   // ── KPI ──────────────────────────────────────────────────────────────────
   const totalScans = events.length
@@ -266,6 +297,13 @@ export default function AnalyticsPage() {
     total: 'Всего', nfc: 'NFC', qr: 'QR', unique: 'Уникальных', conversion: 'Конверсия',
   }
 
+  if (!profileLoaded) {
+    return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Загрузка…</div>
+  }
+
+  // Branch manager не может менять фильтр филиала — он жёстко привязан к одному
+  const isBranchManager = profile?.role === 'branch_manager'
+
   return (
     <div>
       {/* Фильтры */}
@@ -297,12 +335,14 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} style={selectStyle()}>
-          <option value="all">Все филиалы</option>
-          {branches.map(b => (
-            <option key={b.id} value={b.id}>{b.company} — {b.name}</option>
-          ))}
-        </select>
+        {!isBranchManager && (
+          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} style={selectStyle()}>
+            <option value="all">Все филиалы</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.company} — {b.name}</option>
+            ))}
+          </select>
+        )}
 
         <button
           onClick={exportCsv}

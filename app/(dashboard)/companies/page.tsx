@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
@@ -323,7 +322,6 @@ function CompanyModal({
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function CompaniesPage() {
-  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [companies, setCompanies] = useState<Company[]>([])
@@ -345,9 +343,7 @@ export default function CompaniesPage() {
         .single()
       setProfile(data as Profile | null)
       setProfileLoaded(true)
-      if (!data || data.role !== 'super_admin') {
-        router.replace('/dashboard')
-      }
+    })
   }, [])
 
   const canManage = profile?.role === 'super_admin'
@@ -417,7 +413,7 @@ export default function CompaniesPage() {
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Доступ ограничен</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Раздел «Рестораны» доступен только владельцам и супер-администраторам.
+            Раздел «Рестораны» доступен только Super Admin.
           </div>
         </div>
       </Panel>

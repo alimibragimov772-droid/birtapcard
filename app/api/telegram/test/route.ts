@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
-    // Проверяем авторизацию
-    const supabase = await createServiceRoleClient()
+    // Авторизация через user-context клиент (не service role)
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Проверяем роль
+    // Только super_admin может управлять Telegram-ботом
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('user_id', user.id)
       .single()
 
-    if (!profile || !['super_admin', 'owner'].includes(profile.role ?? '')) {
+    if (!profile || profile.role !== 'super_admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -39,11 +39,7 @@ export async function POST(req: NextRequest) {
     const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id,
-        text,
-        parse_mode: 'Markdown',
-      }),
+      body: JSON.stringify({ chat_id, text, parse_mode: 'Markdown' }),
     })
 
     const tgJson = await tgRes.json()
