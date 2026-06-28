@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
@@ -322,6 +323,7 @@ function CompanyModal({
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function CompaniesPage() {
+  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [companies, setCompanies] = useState<Company[]>([])
@@ -343,7 +345,9 @@ export default function CompaniesPage() {
         .single()
       setProfile(data as Profile | null)
       setProfileLoaded(true)
-    })
+      if (!data || data.role !== 'super_admin') {
+        router.replace('/dashboard')
+      }
   }, [])
 
   const canManage = profile?.role === 'super_admin'

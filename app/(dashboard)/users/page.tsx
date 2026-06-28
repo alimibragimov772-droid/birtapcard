@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
@@ -366,6 +367,7 @@ function EditUserModal({
 // ─── Основной компонент ──────────────────────────────────────────────────────
 
 export default function UsersPage() {
+  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
 
@@ -391,7 +393,9 @@ export default function UsersPage() {
         .single()
       setProfile(data as Profile | null)
       setProfileLoaded(true)
-    })
+      if (!data || data.role !== 'super_admin') {
+        router.replace('/dashboard')
+      }
   }, [])
 
   const isSuperAdmin = profile?.role === 'super_admin'

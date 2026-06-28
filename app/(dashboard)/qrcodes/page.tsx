@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Типы ───────────────────────────────────────────────────────────────────
@@ -327,6 +328,7 @@ function QrPreviewModal({ branch, onClose }: { branch: BranchRow; onClose: () =>
 // ─── Главный компонент ───────────────────────────────────────────────────────
 
 export default function QrCodesPage() {
+  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [companies, setCompanies] = useState<CompanyOption[]>([])
@@ -349,7 +351,9 @@ export default function QrCodesPage() {
         .single()
       setProfile(data as Profile | null)
       setProfileLoaded(true)
-    })
+      if (!data || data.role !== 'super_admin') {
+        router.replace('/dashboard')
+      }
   }, [])
 
   const canManage = profile?.role === 'super_admin'
