@@ -216,22 +216,17 @@ function CompanyModal({
     if (!slug.trim()) { setError('Введите slug'); return }
     setSaving(true)
     setError(null)
-    const supabase = createClient()
 
-    if (isEdit) {
-      const { error: updErr } = await supabase
-        .from('companies')
-        .update({ name: name.trim(), slug: slug.trim(), logo_url: logoUrl.trim() || null, active })
-        .eq('id', company!.id)
-      if (updErr) { setError(updErr.message); setSaving(false); return }
-    } else {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setError('Сессия истекла, перезайдите'); setSaving(false); return }
-      const { error: insErr } = await supabase
-        .from('companies')
-        .insert({ name: name.trim(), slug: slug.trim(), logo_url: logoUrl.trim() || null, active, owner_id: user.id })
-      if (insErr) { setError(insErr.message); setSaving(false); return }
-    }
+    const payload = { name: name.trim(), slug: slug.trim(), logo_url: logoUrl.trim() || null, active }
+
+    const res = await fetch('/api/companies/manage', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isEdit ? { id: company!.id, ...payload } : payload),
+    })
+    const json = await res.json()
+
+    if (!res.ok) { setError(json.error ?? 'Не удалось сохранить'); setSaving(false); return }
 
     setSaving(false)
     onSaved()
@@ -373,12 +368,12 @@ export default function CompaniesPage() {
 
   async function handleToggleActive(c: Company) {
     setToggling(c.id)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('companies')
-      .update({ active: !c.active })
-      .eq('id', c.id)
-    if (!error) {
+    const res = await fetch('/api/companies/manage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: c.id, active: !c.active }),
+    })
+    if (res.ok) {
       setCompanies(prev => prev.map(x => x.id === c.id ? { ...x, active: !x.active } : x))
     }
     setToggling(null)

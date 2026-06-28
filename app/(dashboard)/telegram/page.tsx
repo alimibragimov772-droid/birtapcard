@@ -317,17 +317,18 @@ export default function TelegramPage() {
     data: { chat_id: string; notify_daily: boolean; active: boolean },
   ) {
     const existing = settings.find(s => s.company_id === companyId)
-    if (existing) {
-      const { error } = await supabase
-        .from('telegram_settings')
-        .update({ chat_id: data.chat_id, notify_daily: data.notify_daily, active: data.active })
-        .eq('id', existing.id)
-      if (error) throw error
-    } else {
-      const { error } = await supabase
-        .from('telegram_settings')
-        .insert({ company_id: companyId, chat_id: data.chat_id, notify_daily: data.notify_daily, active: data.active })
-      if (error) throw error
+    const res = await fetch('/api/telegram/settings', {
+      method: existing ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        existing
+          ? { id: existing.id, ...data }
+          : { company_id: companyId, ...data }
+      ),
+    })
+    if (!res.ok) {
+      const json = await res.json()
+      throw new Error(json.error ?? 'Не удалось сохранить')
     }
     await load()
   }

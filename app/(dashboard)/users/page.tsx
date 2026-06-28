@@ -250,26 +250,21 @@ function EditUserModal({
   async function handleSave() {
     setSaving(true)
     setError(null)
-    const supabase = createClient()
 
-    const updatePayload: Record<string, string | null> = {
-      full_name: fullName.trim() || null,
-      role,
-    }
-    // company_id нужен только для owner и branch_manager
-    if (role === 'super_admin') {
-      updatePayload.company_id = null
-    } else {
-      updatePayload.company_id = companyId || null
-    }
+    const res = await fetch('/api/users/manage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile_id: user.profile_id,
+        full_name: fullName.trim() || null,
+        role,
+        company_id: role === 'super_admin' ? null : (companyId || null),
+      }),
+    })
+    const json = await res.json()
 
-    const { error: err } = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', user.profile_id)
-
-    if (err) {
-      setError(err.message)
+    if (!res.ok) {
+      setError(json.error ?? 'Не удалось сохранить')
       setSaving(false)
       return
     }
