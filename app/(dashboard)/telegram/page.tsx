@@ -284,9 +284,8 @@ export default function TelegramPage() {
     setProfile({ role: prof?.role ?? null, company_id: prof?.company_id ?? null })
 
     const role = prof?.role
-    const companyId = prof?.company_id
 
-    // Загружаем компании: super_admin видит все, owner — только свою
+    // Загружаем компании: только super_admin может видеть и настраивать Telegram
     let companiesData: CompanyOption[] = []
     if (role === 'super_admin') {
       const { data } = await supabase
@@ -295,13 +294,6 @@ export default function TelegramPage() {
         .eq('active', true)
         .order('name')
       companiesData = data ?? []
-    } else if (role === 'owner' && companyId) {
-      const { data } = await supabase
-        .from('companies')
-        .select('id, name')
-        .eq('id', companyId)
-        .single()
-      companiesData = data ? [data] : []
     }
 
     setCompanies(companiesData)
@@ -340,8 +332,8 @@ export default function TelegramPage() {
     await load()
   }
 
-  // branch_manager не видит эту страницу
-  if (!loading && profile?.role === 'branch_manager') {
+  // Only super_admin can access Telegram settings
+  if (!loading && profile?.role !== 'super_admin') {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -350,7 +342,7 @@ export default function TelegramPage() {
         <div style={{ fontSize: 48 }}>🔒</div>
         <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>Доступ ограничен</div>
         <div style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: 360 }}>
-          Управление Telegram-уведомлениями доступно только для владельцев и администраторов.
+          Управление Telegram-уведомлениями доступно только для Super Admin.
         </div>
       </div>
     )

@@ -352,7 +352,7 @@ export default function QrCodesPage() {
     })
   }, [])
 
-  const canManage = profile?.role === 'super_admin' || profile?.role === 'owner'
+  const canManage = profile?.role === 'super_admin'
 
   const loadData = useCallback(async () => {
     setLoading(true)

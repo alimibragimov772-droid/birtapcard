@@ -346,7 +346,7 @@ export default function CompaniesPage() {
     })
   }, [])
 
-  const canManage = profile?.role === 'super_admin' || profile?.role === 'owner'
+  const canManage = profile?.role === 'super_admin'
   const canEdit = profile?.role === 'super_admin'
 
   const loadCompanies = useCallback(async () => {
@@ -489,15 +489,17 @@ export default function CompaniesPage() {
                 </div>
               </div>
 
-              {/* Действия */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <Toggle
-                  checked={c.active}
-                  disabled={toggling === c.id}
-                  onChange={() => handleToggleActive(c)}
-                />
-                {canEdit && <GhostButton onClick={() => openEdit(c)}>Редактировать</GhostButton>}
-              </div>
+              {/* Действия — только Super Admin */}
+              {canEdit && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <Toggle
+                    checked={c.active}
+                    disabled={toggling === c.id}
+                    onChange={() => handleToggleActive(c)}
+                  />
+                  <GhostButton onClick={() => openEdit(c)}>Редактировать</GhostButton>
+                </div>
+              )}
             </div>
           ))
         )}

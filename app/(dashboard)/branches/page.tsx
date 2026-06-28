@@ -581,9 +581,8 @@ export default function BranchesPage() {
     })
   }, [])
 
-  const canManage = profile?.role === 'super_admin' || profile?.role === 'owner'
+  const canManage = profile?.role === 'super_admin'
   const canEdit = profile?.role === 'super_admin'
-  console.log('ROLE:', profile?.role, 'canEdit:', canEdit)
 
   const loadData = useCallback(async () => {
     setLoading(true)

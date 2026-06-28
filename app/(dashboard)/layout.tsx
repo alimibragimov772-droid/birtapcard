@@ -5,8 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
-// ─── Иконки (inline SVG компоненты) ────────────────────────────────────────
-
 function Icon({ d, size = 16 }: { d: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -27,44 +25,85 @@ const icons = {
   settings: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z',
   logout: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9',
   bell: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0',
-  refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15',
-  nfc: 'M6 8a6 6 0 0012 0 M6 8a6 6 0 1112 0v8a2 2 0 01-2 2H8a2 2 0 01-2-2V8z M12 8v4 M12 16v.01',
 }
-
-// ─── Навигационные пункты ───────────────────────────────────────────────────
 
 type NavItem = {
   href: string
   label: string
   icon: keyof typeof icons
-  badge?: string
 }
 
-const mainNav: NavItem[] = [
-  { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
-  { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
+// ─── Role-based navigation ─────────────────────────────────────────────────
+// Super Admin sees everything. Owner and Branch Manager see only analytics.
+
+const SUPER_ADMIN_NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: 'Главная',
+    items: [
+      { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
+      { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
+    ],
+  },
+  {
+    group: 'Управление',
+    items: [
+      { href: '/companies', label: 'Рестораны', icon: 'restaurants' },
+      { href: '/branches', label: 'Филиалы', icon: 'branches' },
+      { href: '/qrcodes', label: 'QR-коды', icon: 'qrcodes' },
+      { href: '/users', label: 'Пользователи', icon: 'users' },
+    ],
+  },
+  {
+    group: 'Инструменты',
+    items: [
+      { href: '/telegram', label: 'Telegram', icon: 'telegram' },
+      { href: '/settings', label: 'Настройки', icon: 'settings' },
+    ],
+  },
 ]
 
-const manageNav: NavItem[] = [
-  { href: '/companies', label: 'Рестораны', icon: 'restaurants' },
-  { href: '/branches', label: 'Филиалы', icon: 'branches' },
-  { href: '/qrcodes', label: 'QR-коды', icon: 'qrcodes' },
-  { href: '/users', label: 'Пользователи', icon: 'users' },
+const OWNER_NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: 'Главная',
+    items: [
+      { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
+      { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
+    ],
+  },
+  {
+    group: 'Аккаунт',
+    items: [
+      { href: '/settings', label: 'Настройки', icon: 'settings' },
+    ],
+  },
 ]
 
-const toolsNav: NavItem[] = [
-  { href: '/telegram', label: 'Telegram', icon: 'telegram' },
-  { href: '/settings', label: 'Настройки', icon: 'settings' },
+const BRANCH_MANAGER_NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: 'Главная',
+    items: [
+      { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
+      { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
+    ],
+  },
+  {
+    group: 'Аккаунт',
+    items: [
+      { href: '/settings', label: 'Настройки', icon: 'settings' },
+    ],
+  },
 ]
 
-// ─── Типы профиля ───────────────────────────────────────────────────────────
+function getNavByRole(role: string | null) {
+  if (role === 'super_admin') return SUPER_ADMIN_NAV
+  if (role === 'owner') return OWNER_NAV
+  return BRANCH_MANAGER_NAV
+}
 
 type Profile = {
   full_name: string | null
   role: string | null
 }
-
-// ─── Компоненты sidebar ─────────────────────────────────────────────────────
 
 function NavGroup({ label, items, pathname }: {
   label: string
@@ -113,22 +152,12 @@ function NavGroup({ label, items, pathname }: {
               <Icon d={icons[item.icon]} />
             </span>
             <span style={{ flex: 1 }}>{item.label}</span>
-            {item.badge && (
-              <span style={{
-                background: 'var(--mint)', color: 'var(--bg)',
-                fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
-              }}>
-                {item.badge}
-              </span>
-            )}
           </Link>
         )
       })}
     </div>
   )
 }
-
-// ─── Топбар с заголовком страницы ───────────────────────────────────────────
 
 const pageTitles: Record<string, { title: string; sub: string }> = {
   '/dashboard':  { title: 'Дашборд',         sub: 'Общая статистика по всем ресторанам' },
@@ -141,15 +170,12 @@ const pageTitles: Record<string, { title: string; sub: string }> = {
   '/settings':   { title: 'Настройки',       sub: 'Профиль и безопасность' },
 }
 
-// ─── Главный Layout ─────────────────────────────────────────────────────────
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [time, setTime] = useState<string>('')
 
-  // Загрузка профиля
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -163,7 +189,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })
   }, [router])
 
-  // Живые часы
   useEffect(() => {
     const tick = () => {
       setTime(new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }))
@@ -188,6 +213,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     profile?.role === 'owner'       ? 'Владелец' :
     profile?.role === 'branch_manager' ? 'Менеджер' : ''
 
+  const navGroups = getNavByRole(profile?.role ?? null)
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
 
@@ -210,7 +237,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative', overflow: 'hidden',
             }}>
-              {/* NFC пульс */}
               <div style={{
                 position: 'absolute', inset: 0, borderRadius: 10,
                 background: 'var(--mint)', opacity: 0,
@@ -238,11 +264,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Навигация */}
+        {/* Навигация — зависит от роли */}
         <nav style={{ padding: '16px 12px', flex: 1 }}>
-          <NavGroup label="Главная"     items={mainNav}   pathname={pathname} />
-          <NavGroup label="Управление"  items={manageNav} pathname={pathname} />
-          <NavGroup label="Настройки"   items={toolsNav}  pathname={pathname} />
+          {navGroups.map(group => (
+            <NavGroup
+              key={group.group}
+              label={group.group}
+              items={group.items}
+              pathname={pathname}
+            />
+          ))}
         </nav>
 
         {/* Пользователь + выход */}
@@ -308,7 +339,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Часы */}
             <div style={{
               fontFamily: 'var(--font-mono), JetBrains Mono, monospace',
               fontSize: 12, color: 'var(--text-muted)',
@@ -317,7 +347,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }}>
               {time}
             </div>
-            {/* Уведомление */}
             <button style={{
               background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
@@ -335,7 +364,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
 
-      {/* CSS анимация пульса логотипа */}
       <style>{`
         @keyframes btc-pulse {
           0%   { transform: scale(1);   opacity: 0.5; }
