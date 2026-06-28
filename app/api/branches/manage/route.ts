@@ -95,7 +95,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await getAuthenticatedRole()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (auth.role !== 'super_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (auth.role !== 'super_admin') return NextResponse.json({ error: 'BLOCKED_V2_TEST' }, { status: 403 })
 
   const body = await request.json()
   const { id } = body
