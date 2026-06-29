@@ -703,17 +703,7 @@ export default function BranchesPage() {
   }
 
   if (!canManage) {
-    return (
-      <Panel>
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Доступ ограничен</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Раздел «Филиалы» доступен только Super Admin.
-          </div>
-        </div>
-      </Panel>
-    )
+    return null
   }
 
   return (
