@@ -227,6 +227,17 @@ export function formatReport(data: ReportData): string {
   return msg
 }
 
+/** Fetch and format report for an owner/super_admin (whole company) */
+export async function fetchOwnerReport(
+  supabase: SupabaseClient,
+  companyId: string,
+  range: ReportRange
+): Promise<string | null> {
+  const data = await fetchCompanyReport(supabase, companyId, range)
+  if (!data) return null
+  return formatReport(data)
+}
+
 /** Fetch report for a single branch (for branch_manager role) */
 export async function fetchBranchReport(
   supabase: SupabaseClient,
@@ -253,7 +264,8 @@ export async function fetchBranchReport(
   const qr = ev.filter(e => e.scan_type === 'qr').length
   const total = ev.length
   const unique = ev.filter(e => e.is_unique).length
-  const companyName = (branch.companies as { name: string } | null)?.name ?? ''
+  const companies = branch.companies as { name: string }[] | { name: string } | null
+  const companyName = (Array.isArray(companies) ? companies[0]?.name : companies?.name) ?? ''
 
   return (
     `📊 *BirTap · ${range.label}*\n` +
