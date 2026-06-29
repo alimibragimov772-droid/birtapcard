@@ -253,7 +253,8 @@ export async function fetchBranchReport(
   const qr = ev.filter(e => e.scan_type === 'qr').length
   const total = ev.length
   const unique = ev.filter(e => e.is_unique).length
-  const companyName = (branch.companies as { name: string } | null)?.name ?? ''
+  const companies = branch.companies as { name: string }[] | { name: string } | null
+  const companyName = (Array.isArray(companies) ? companies[0]?.name : companies?.name) ?? ''
 
   return (
     `📊 *BirTap · ${range.label}*\n` +
