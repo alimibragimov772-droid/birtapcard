@@ -34,7 +34,10 @@ type NavItem = {
 }
 
 // ─── Role-based navigation ─────────────────────────────────────────────────
-// Super Admin sees everything. Owner and Branch Manager see only analytics.
+// super_admin sees everything.
+// owner sees Dashboard + Analytics ONLY (read-only).
+// branch_manager sees Dashboard + Analytics ONLY (read-only, scoped to own branch).
+// Neither owner nor branch_manager sees Settings, Companies, Branches, Users, etc.
 
 const SUPER_ADMIN_NAV: { group: string; items: NavItem[] }[] = [
   {
@@ -62,34 +65,24 @@ const SUPER_ADMIN_NAV: { group: string; items: NavItem[] }[] = [
   },
 ]
 
+// Owner: read-only analytics only. No admin sections, no settings.
 const OWNER_NAV: { group: string; items: NavItem[] }[] = [
   {
-    group: 'Главная',
+    group: 'Аналитика',
     items: [
       { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
       { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
-    ],
-  },
-  {
-    group: 'Аккаунт',
-    items: [
-      { href: '/settings', label: 'Настройки', icon: 'settings' },
     ],
   },
 ]
 
+// Branch Manager: read-only, only own branch analytics.
 const BRANCH_MANAGER_NAV: { group: string; items: NavItem[] }[] = [
   {
-    group: 'Главная',
+    group: 'Аналитика',
     items: [
       { href: '/dashboard', label: 'Дашборд', icon: 'dashboard' },
       { href: '/analytics', label: 'Аналитика', icon: 'analytics' },
-    ],
-  },
-  {
-    group: 'Аккаунт',
-    items: [
-      { href: '/settings', label: 'Настройки', icon: 'settings' },
     ],
   },
 ]
@@ -160,7 +153,7 @@ function NavGroup({ label, items, pathname }: {
 }
 
 const pageTitles: Record<string, { title: string; sub: string }> = {
-  '/dashboard':  { title: 'Дашборд',         sub: 'Общая статистика по всем ресторанам' },
+  '/dashboard':  { title: 'Дашборд',         sub: 'Общая статистика по сканированиям' },
   '/analytics':  { title: 'Аналитика',       sub: 'Детальная аналитика сканирований' },
   '/companies':  { title: 'Рестораны',       sub: 'Управление сетью ресторанов' },
   '/branches':   { title: 'Филиалы',         sub: 'Управление точками и NFC/QR-токенами' },
@@ -264,7 +257,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Навигация — зависит от роли */}
+        {/* Навигация — строго зависит от роли */}
         <nav style={{ padding: '16px 12px', flex: 1 }}>
           {navGroups.map(group => (
             <NavGroup

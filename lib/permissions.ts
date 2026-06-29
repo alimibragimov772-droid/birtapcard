@@ -15,13 +15,22 @@ export const SUPER_ADMIN_ONLY_PATHS = [
   '/users',
   '/telegram',
   '/qrcodes',
+  '/settings',
 ]
 
-/** Pages available to all authenticated users (read-only for owner/branch_manager) */
-export const SHARED_PATHS = [
+/**
+ * Pages available to owner (read-only analytics).
+ * Branch manager is NOT included — they are redirected to /dashboard.
+ */
+export const OWNER_ALLOWED_PATHS = [
   '/dashboard',
   '/analytics',
-  '/settings',
+]
+
+/** Pages available to ALL authenticated roles */
+export const PUBLIC_DASHBOARD_PATHS = [
+  '/dashboard',
+  '/analytics',
 ]
 
 export const PERMISSIONS = {
@@ -34,6 +43,7 @@ export const PERMISSIONS = {
     canManageUsers:       true,
     canViewAllData:       true,
     canAccessAdminPages:  true,
+    canAccessSettings:    true,
   },
   owner: {
     canCreateCompany:     false,
@@ -44,6 +54,7 @@ export const PERMISSIONS = {
     canManageUsers:       false,
     canViewAllData:       true,
     canAccessAdminPages:  false,
+    canAccessSettings:    false,
   },
   branch_manager: {
     canCreateCompany:     false,
@@ -54,6 +65,7 @@ export const PERMISSIONS = {
     canManageUsers:       false,
     canViewAllData:       false,
     canAccessAdminPages:  false,
+    canAccessSettings:    false,
   },
 } as const
 
@@ -70,4 +82,9 @@ export function hasPermission(
 /** Returns true only for super_admin */
 export function isSuperAdmin(role: string | null | undefined): boolean {
   return role === 'super_admin'
+}
+
+/** Returns true for super_admin and owner */
+export function canViewAnalytics(role: string | null | undefined): boolean {
+  return role === 'super_admin' || role === 'owner' || role === 'branch_manager'
 }
