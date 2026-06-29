@@ -325,6 +325,8 @@ export default function CompaniesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Company | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
 
   // Загрузка профиля (для проверки роли)
   useEffect(() => {
@@ -377,6 +379,34 @@ export default function CompaniesPage() {
       setCompanies(prev => prev.map(x => x.id === c.id ? { ...x, active: !x.active } : x))
     }
     setToggling(null)
+  }
+
+  async function handleDelete(c: Company) {
+    const branchCount = c.branches?.length ?? 0
+    const ok = window.confirm(
+      branchCount > 0
+        ? `У ресторана «${c.name}» есть ${branchCount} филиал(а). Сначала удалите все его филиалы в разделе «Филиалы», затем удалите ресторан.`
+        : `Удалить ресторан «${c.name}»?\n\nЭто действие нельзя отменить.`
+    )
+    if (!ok || branchCount > 0) return
+
+    setDeleting(c.id)
+    setRowError(null)
+    try {
+      const res = await fetch('/api/companies/manage', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Не удалось удалить ресторан')
+      }
+      setCompanies(prev => prev.filter(x => x.id !== c.id))
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message : 'Не удалось удалить ресторан')
+    }
+    setDeleting(null)
   }
 
   function openCreate() {
@@ -440,6 +470,16 @@ export default function CompaniesPage() {
       </div>
 
       {/* Список ресторанов */}
+      {rowError && (
+        <div style={{
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: 10, padding: '12px 16px', fontSize: 12.5, color: 'var(--danger)', marginBottom: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span>{rowError}</span>
+          <button onClick={() => setRowError(null)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+        </div>
+      )}
       <Panel title="Рестораны" sub={`${filtered.length} из ${companies.length}`}>
         {loading ? (
           <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>Загрузка…</div>
@@ -493,6 +533,9 @@ export default function CompaniesPage() {
                     onChange={() => handleToggleActive(c)}
                   />
                   <GhostButton onClick={() => openEdit(c)}>Редактировать</GhostButton>
+                  <GhostButton danger onClick={() => handleDelete(c)}>
+                    {deleting === c.id ? '…' : 'Удалить'}
+                  </GhostButton>
                 </div>
               )}
             </div>

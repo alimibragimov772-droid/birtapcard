@@ -90,3 +90,48 @@ export async function PUT(request: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+
+/**
+ * DELETE /api/companies/manage
+ * Deletes a company (restaurant network). SUPER ADMIN ONLY.
+ * Refuses to delete while branches still reference it — branches and their
+ * scan history must be removed first so nothing is silently cascade-deleted.
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = await getAuthenticatedRole()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (auth.role !== 'super_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await request.json()
+  const { id } = body
+
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const supabase = createServiceRoleClient()
+
+  const { count, error: countError } = await supabase
+    .from('branches')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', id)
+
+  if (countError) {
+    console.error('companies delete (branch check) error:', countError)
+    return NextResponse.json({ error: countError.message }, { status: 500 })
+  }
+
+  if ((count ?? 0) > 0) {
+    return NextResponse.json(
+      { error: `У ресторана есть ${count} филиал(а) — сначала удалите все филиалы` },
+      { status: 409 }
+    )
+  }
+
+  const { error } = await supabase.from('companies').delete().eq('id', id)
+
+  if (error) {
+    console.error('companies delete error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
+}
