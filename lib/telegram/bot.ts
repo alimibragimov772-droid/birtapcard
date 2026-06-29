@@ -21,12 +21,22 @@ export interface InlineButton {
   url?: string
 }
 
+export interface ReplyKeyboardButton {
+  text: string
+}
+
+export interface ReplyMarkup {
+  inline_keyboard?: InlineButton[][]
+  keyboard?: ReplyKeyboardButton[][]
+  resize_keyboard?: boolean
+  persistent?: boolean
+  remove_keyboard?: boolean
+  one_time_keyboard?: boolean
+}
+
 export interface SendMessageOptions {
   parse_mode?: 'Markdown' | 'HTML'
-  reply_markup?: {
-    inline_keyboard?: InlineButton[][]
-    remove_keyboard?: boolean
-  }
+  reply_markup?: ReplyMarkup
   disable_web_page_preview?: boolean
 }
 
