@@ -4,11 +4,16 @@
  * Маршрутизация входящих message-апдейтов (текст, фото, документы).
  * Это единственное место, которое решает "что делать с сообщением" —
  * webhook route.ts остаётся тонким HTTP-слоем над этим модулем.
+ *
+ * Phase 1: меню и текстовые кнопки теперь зависят от роли пользователя
+ * (super_admin / owner / branch_manager). Разделы, которых ещё нет
+ * (см. план фаз), отвечают экраном "скоро" через comingSoon(), но кнопка
+ * уже в меню — навигация не будет визуально меняться от фазы к фазе.
  */
 
 import { sendMessage, keyboard } from '@/lib/telegram/bot'
-import { findProfile } from '@/lib/telegram/db'
-import { MAIN_MENU } from '@/lib/telegram/keyboards/main'
+import { findProfile, type BotProfile } from '@/lib/telegram/db'
+import { menuForRole } from '@/lib/telegram/keyboards/menus'
 import type { TgMessage } from '@/lib/telegram/types'
 import { handleStart, handleLinkToken } from '@/lib/telegram/handlers/start'
 import { handleReport } from '@/lib/telegram/handlers/report'
@@ -18,6 +23,7 @@ import {
   isAwaitingReceipt,
 } from '@/lib/telegram/handlers/subscription'
 import { handleSettings, handleHelp } from '@/lib/telegram/handlers/settings'
+import { comingSoon } from '@/lib/telegram/handlers/comingSoon'
 
 const COMMAND_MAP: Record<string, string> = {
   '/today': 'today',
@@ -25,7 +31,119 @@ const COMMAND_MAP: Record<string, string> = {
   '/week': '7d',
   '/month': 'month',
   '/report': 'today',
-  '📊 Статистика сегодня': 'today',
+}
+
+async function sendPeriodPicker(chatId: number) {
+  await sendMessage(chatId, '📅 *Выберите период:*', {
+    reply_markup: keyboard([
+      [{ text: '📅 Сегодня', callback_data: 'report:today' }, { text: '📅 Вчера', callback_data: 'report:yesterday' }],
+      [{ text: '📅 7 дней', callback_data: 'report:7d' }, { text: '📅 30 дней', callback_data: 'report:30d' }],
+      [{ text: '📅 Этот месяц', callback_data: 'report:month' }, { text: '📅 Прошлый месяц', callback_data: 'report:prev_month' }],
+    ]),
+  })
+}
+
+/**
+ * Текстовая навигация для уже привязанного пользователя.
+ * Возвращает true, если сообщение было обработано как пункт меню/команда.
+ */
+async function dispatchMenuText(chatId: number, telegramId: number, profile: BotProfile, text: string): Promise<boolean> {
+  // ─── Общие для всех ролей ──────────────────────────────────────────────
+  if (COMMAND_MAP[text] !== undefined) {
+    await handleReport(chatId, telegramId, COMMAND_MAP[text])
+    return true
+  }
+
+  if (text === '📅 Выбрать период' || text === '/periods') {
+    await sendPeriodPicker(chatId)
+    return true
+  }
+
+  if (text === '⚙️ Настройки' || text === '⚙ Настройки' || text === '/settings') {
+    await handleSettings(chatId, telegramId)
+    return true
+  }
+
+  if (text === '❓ Помощь' || text === 'ℹ Информация' || text === '/help') {
+    await handleHelp(chatId)
+    return true
+  }
+
+  // ─── "📈 Аналитика" неоднозначна: у owner это период, у super_admin — раздел Фазы 4 ──
+  if (text === '📈 Аналитика') {
+    if (profile.role === 'super_admin') {
+      await comingSoon(chatId, 'Аналитика платформы', 'Фазе 4')
+    } else {
+      await sendPeriodPicker(chatId)
+    }
+    return true
+  }
+
+  // ─── Owner / Branch Manager ─────────────────────────────────────────────
+  if (text === '📊 Сегодня') {
+    await handleReport(chatId, telegramId, 'today')
+    return true
+  }
+
+  if (text === '📈 Статистика') {
+    await sendPeriodPicker(chatId)
+    return true
+  }
+
+  if (text === '📄 Отчёт') {
+    await handleReport(chatId, telegramId, 'today')
+    return true
+  }
+
+  if (text === '💳 Подписка' || text === '💳 Подписка и оплата' || text === '/subscription' || text === '/pay') {
+    await handleSubscriptionMenu(chatId, telegramId)
+    return true
+  }
+
+  if (text === '📄 Скачать отчёт') {
+    await comingSoon(chatId, 'Скачать отчёт (PDF / Excel / CSV)', 'Фазе 2')
+    return true
+  }
+
+  if (text === '🏪 Мои филиалы') {
+    await comingSoon(chatId, 'Мои филиалы', 'Фазе 2')
+    return true
+  }
+
+  if (text === '🏆 Рейтинг филиалов') {
+    await comingSoon(chatId, 'Рейтинг филиалов', 'Фазе 2')
+    return true
+  }
+
+  if (text === '🔔 Уведомления') {
+    await comingSoon(chatId, 'Настройка уведомлений', 'Фазе 5')
+    return true
+  }
+
+  if (text === '🆘 Поддержка') {
+    await comingSoon(chatId, 'Поддержка', 'Фазе 6')
+    return true
+  }
+
+  // ─── Super Admin (Фаза 4) ────────────────────────────────────────────────
+  const adminStubs: Record<string, string> = {
+    '📊 Статистика платформы': 'Статистика платформы',
+    '🏢 Компании': 'Компании',
+    '🍽 Рестораны': 'Рестораны',
+    '🏪 Филиалы': 'Филиалы',
+    '👥 Пользователи': 'Пользователи',
+    '💳 Подписки': 'Подписки клиентов',
+    '💰 Оплаты': 'Оплаты',
+    '📩 Новые чеки': 'Новые чеки',
+    '📢 Рассылка': 'Рассылка',
+    '🤖 Telegram': 'Управление Telegram-ботом',
+  }
+  if (adminStubs[text]) {
+    await comingSoon(chatId, adminStubs[text], 'Фазе 4')
+    return true
+  }
+
+  return false
 }
 
 export async function handleMessage(msg: TgMessage) {
@@ -52,44 +170,9 @@ export async function handleMessage(msg: TgMessage) {
     return
   }
 
-  // ─── Команды и кнопки отчётов ─────────────────────────────────────────
-  if (COMMAND_MAP[text] !== undefined) {
-    await handleReport(chatId, telegramId, COMMAND_MAP[text])
-    return
-  }
-
-  // ─── Меню периодов ──────────────────────────────────────────────────────
-  if (text === '📅 Выбрать период' || text === '/periods') {
-    await sendMessage(chatId, '📅 *Выберите период:*', {
-      reply_markup: keyboard([
-        [{ text: '📅 Сегодня', callback_data: 'report:today' }, { text: '📅 Вчера', callback_data: 'report:yesterday' }],
-        [{ text: '📅 7 дней', callback_data: 'report:7d' }, { text: '📅 30 дней', callback_data: 'report:30d' }],
-        [{ text: '📅 Этот месяц', callback_data: 'report:month' }, { text: '📅 Прошлый месяц', callback_data: 'report:prev_month' }],
-      ]),
-    })
-    return
-  }
-
-  // ─── Подписка и оплата ──────────────────────────────────────────────────
-  if (text === '💳 Подписка и оплата' || text === '/subscription' || text === '/pay') {
-    await handleSubscriptionMenu(chatId, telegramId)
-    return
-  }
-
-  // ─── Настройки ───────────────────────────────────────────────────────────
-  if (text === '⚙️ Настройки' || text === '/settings') {
-    await handleSettings(chatId, telegramId)
-    return
-  }
-
-  // ─── Помощь ──────────────────────────────────────────────────────────────
-  if (text === '❓ Помощь' || text === '/help') {
-    await handleHelp(chatId)
-    return
-  }
-
-  // ─── Неизвестная команда ─────────────────────────────────────────────────
   const profile = await findProfile(telegramId)
+
+  // ─── Не привязан ─────────────────────────────────────────────────────────
   if (!profile) {
     await sendMessage(chatId,
       '👋 Привет! Я *BirTapCard Statistics Bot*.\n\n' +
@@ -99,13 +182,13 @@ export async function handleMessage(msg: TgMessage) {
     return
   }
 
+  // ─── Пункты меню / команды по роли ───────────────────────────────────────
+  const handled = await dispatchMenuText(chatId, telegramId, profile, text)
+  if (handled) return
+
+  // ─── Неизвестное сообщение ────────────────────────────────────────────────
   await sendMessage(chatId,
-    'Используйте кнопки меню ниже или команды:\n\n' +
-    '/today — статистика сегодня\n' +
-    '/week — за 7 дней\n' +
-    '/month — за месяц\n' +
-    '/subscription — подписка и оплата\n' +
-    '/help — справка',
-    { reply_markup: MAIN_MENU }
+    'Не понял команду 🤔 Используйте кнопки меню ниже.',
+    { reply_markup: menuForRole(profile.role) }
   )
 }

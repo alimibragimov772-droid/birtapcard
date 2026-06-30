@@ -7,8 +7,14 @@
 
 import { sendMessage } from '@/lib/telegram/bot'
 import { db, findProfile } from '@/lib/telegram/db'
-import { MAIN_MENU } from '@/lib/telegram/keyboards/main'
+import { menuForRole } from '@/lib/telegram/keyboards/menus'
 import type { TgUser } from '@/lib/telegram/types'
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: '👑 Супер-администратор',
+  owner: '🏪 Владелец',
+  branch_manager: '📍 Управляющий филиалом',
+}
 
 export async function handleStart(chatId: number, telegramId: number) {
   const profile = await findProfile(telegramId)
@@ -29,8 +35,9 @@ export async function handleStart(chatId: number, telegramId: number) {
 
   await sendMessage(chatId,
     `✅ Привет, *${profile.full_name ?? 'друг'}*!\n\n` +
+    `${ROLE_LABEL[profile.role] ?? ''}\n\n` +
     `Ваш аккаунт подключён. Используйте меню для управления.`,
-    { reply_markup: MAIN_MENU }
+    { reply_markup: menuForRole(profile.role) }
   )
 }
 
@@ -66,18 +73,19 @@ export async function handleLinkToken(chatId: number, telegramId: number, tgUser
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name')
+    .select('full_name, role')
     .eq('user_id', acc.user_id)
     .single()
 
   await sendMessage(chatId,
     `✅ *Telegram успешно привязан!*\n\n` +
-    `Добро пожаловать${profile?.full_name ? `, *${profile.full_name}*` : ''}!\n\n` +
+    `Добро пожаловать${profile?.full_name ? `, *${profile.full_name}*` : ''}!\n` +
+    `${profile?.role ? ROLE_LABEL[profile.role] ?? '' : ''}\n\n` +
     `Теперь вы будете получать:\n` +
     `• Ежедневные отчёты по статистике\n` +
     `• Напоминания о подписке\n` +
     `• Уведомления об оплате\n\n` +
     `Используйте меню ниже для управления.`,
-    { reply_markup: MAIN_MENU }
+    { reply_markup: menuForRole(profile?.role as 'super_admin' | 'owner' | 'branch_manager' | undefined) }
   )
 }

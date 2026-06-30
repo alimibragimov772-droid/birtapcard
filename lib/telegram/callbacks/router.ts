@@ -8,7 +8,8 @@
  */
 
 import { sendMessage, answerCallback } from '@/lib/telegram/bot'
-import { MAIN_MENU } from '@/lib/telegram/keyboards/main'
+import { findProfile } from '@/lib/telegram/db'
+import { menuForRole } from '@/lib/telegram/keyboards/menus'
 import type { TgCallbackQuery } from '@/lib/telegram/types'
 import { handleReport } from '@/lib/telegram/handlers/report'
 import {
@@ -36,9 +37,10 @@ const EXACT_ROUTES: Record<string, (chatId: number, telegramId: number, cbId: st
     await answerCallback(cbId)
     await handlePayHistory(chatId, telegramId)
   },
-  main_menu: async (chatId, _telegramId, cbId) => {
+  main_menu: async (chatId, telegramId, cbId) => {
     await answerCallback(cbId)
-    await sendMessage(chatId, '🏠 Главное меню:', { reply_markup: MAIN_MENU })
+    const profile = await findProfile(telegramId)
+    await sendMessage(chatId, '🏠 Главное меню:', { reply_markup: menuForRole(profile?.role) })
   },
 }
 
