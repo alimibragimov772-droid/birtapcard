@@ -11,7 +11,7 @@ import { sendMessage, answerCallback } from '@/lib/telegram/bot'
 import { findProfile } from '@/lib/telegram/db'
 import { menuForRole } from '@/lib/telegram/keyboards/menus'
 import type { TgCallbackQuery } from '@/lib/telegram/types'
-import { handleReport } from '@/lib/telegram/handlers/report'
+import { handleReport, handleCustomRangeRequest } from '@/lib/telegram/handlers/report'
 import {
   handleSubscriptionMenu,
   handlePayStart,
@@ -20,6 +20,8 @@ import {
   handlePayHistory,
 } from '@/lib/telegram/handlers/subscription'
 import { handleAdminApprove, handleAdminReject } from '@/lib/telegram/handlers/admin'
+import { handleBranchRanking } from '@/lib/telegram/handlers/branches'
+import { handleExportReport } from '@/lib/telegram/handlers/export'
 
 /**
  * Точные совпадения callback_data → обработчик.
@@ -50,7 +52,19 @@ const EXACT_ROUTES: Record<string, (chatId: number, telegramId: number, cbId: st
 const PREFIX_ROUTES: Record<string, (chatId: number, telegramId: number, arg: string, cbId: string) => Promise<void>> = {
   'report:': async (chatId, telegramId, arg, cbId) => {
     await answerCallback(cbId)
+    if (arg === 'custom') {
+      await handleCustomRangeRequest(chatId, telegramId)
+      return
+    }
     await handleReport(chatId, telegramId, arg)
+  },
+  'rank:': async (chatId, telegramId, arg, cbId) => {
+    await answerCallback(cbId)
+    await handleBranchRanking(chatId, telegramId, arg)
+  },
+  'export:': async (chatId, telegramId, arg, cbId) => {
+    await answerCallback(cbId)
+    await handleExportReport(chatId, telegramId, arg)
   },
   'pay_plan:': async (chatId, telegramId, arg, cbId) => {
     await answerCallback(cbId)

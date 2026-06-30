@@ -132,6 +132,31 @@ export async function sendPhoto(
   }
 }
 
+/** Send a document (file) — used for CSV/Excel/PDF report exports */
+export async function sendDocument(
+  chatId: number | string,
+  filename: string,
+  content: string | Buffer,
+  caption?: string
+): Promise<{ ok: boolean; result?: { message_id: number } }> {
+  try {
+    const form = new FormData()
+    form.append('chat_id', String(chatId))
+    if (caption) {
+      form.append('caption', caption)
+      form.append('parse_mode', 'Markdown')
+    }
+    const blob = new Blob([content], { type: 'application/octet-stream' })
+    form.append('document', blob, filename)
+
+    const res = await fetch(botUrl('sendDocument'), { method: 'POST', body: form })
+    const json = await res.json()
+    return { ok: json.ok === true, result: json.result }
+  } catch {
+    return { ok: false }
+  }
+}
+
 /** Get a file path from Telegram (for downloading receipts) */
 export async function getFile(fileId: string): Promise<string | null> {
   try {
