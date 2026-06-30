@@ -8,7 +8,7 @@
  * bot_state в Supabase через lib/telegram/db.ts (setState/getState/clearState).
  */
 
-import { sendMessage, getFile, keyboard } from '@/lib/telegram/bot'
+import { sendMessage, getFile, keyboard, type InlineButton } from '@/lib/telegram/bot'
 import { db, findProfile, setState, getState, clearState } from '@/lib/telegram/db'
 import { navRow } from '@/lib/telegram/keyboards/main'
 import type { TgMessage } from '@/lib/telegram/types'
@@ -131,7 +131,7 @@ export async function handlePayStart(chatId: number) {
     return
   }
 
-  const buttons = plans.map(p => [{
+  const buttons: InlineButton[][] = plans.map(p => [{
     text: `${p.name} — ${p.price.toLocaleString()} ${p.currency}`,
     callback_data: `pay_plan:${p.id}`,
   }])
